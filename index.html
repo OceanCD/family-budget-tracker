@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Budget Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 30px; color: #333; }
+    
+    .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
+    .card.income { border-top: 4px solid #22c55e; }
+    .card.expense { border-top: 4px solid #ef4444; }
+    .card.balance { border-top: 4px solid #3b82f6; }
+    .card h3 { font-size: 14px; color: #666; margin-bottom: 8px; }
+    .card .amount { font-size: 24px; font-weight: bold; }
+    .card.income .amount { color: #22c55e; }
+    .card.expense .amount { color: #ef4444; }
+    .card.balance .amount { color: #3b82f6; }
+    
+    .form-section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .form-section h2 { margin-bottom: 15px; font-size: 18px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr 100px; gap: 10px; margin-bottom: 10px; }
+    input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    button { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #2563eb; }
+    
+    .transactions { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .transactions h2 { margin-bottom: 15px; font-size: 18px; }
+    .transaction { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+    .transaction:last-child { border-bottom: none; }
+    .transaction .desc { font-weight: 500; }
+    .transaction .amount { font-weight: bold; }
+    .transaction.income .amount { color: #22c55e; }
+    .transaction.expense .amount { color: #ef4444; }
+    .transaction .delete-btn { background: #ef4444; padding: 4px 8px; font-size: 12px; margin-left: 10px; }
+    
+    @media (max-width: 600px) {
+      .summary { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏠 Family Budget 2026</h1>
+    
+    <div class="summary">
+      <div class="card income">
+        <h3>💰 Total Income</h3>
+        <div class="amount" id="totalIncome">$0</div>
+      </div>
+      <div class="card expense">
+        <h3>💸 Total Expenses</h3>
+        <div class="amount" id="totalExpense">$0</div>
+      </div>
+      <div class="card balance">
+        <h3>💎 Balance</h3>
+        <div class="amount" id="balance">$0</div>
+      </div>
+    </div>
+    
+    <div class="form-section">
+      <h2>➕ Add Transaction</h2>
+      <div class="form-row">
+        <input type="text" id="description" placeholder="Description (e.g., Cruise Salary)">
+        <select id="type">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+        <input type="number" id="amount" placeholder="Amount" min="0" step="100">
+      </div>
+      <button onclick="addTransaction()">Add</button>
+    </div>
+    
+    <div class="transactions">
+      <h2>📋 Transactions</h2>
+      <div id="transactionList"></div>
+    </div>
+  </div>
+
+  <script>
+    // Load data from localStorage
+    let transactions = JSON.parse(localStorage.getItem('budgetTransactions')) || [
+      { id: 1, desc: 'Cruise Salary (Monthly)', type: 'income', amount: 52500 },
+      { id: 2, desc: 'Cruise Bonus', type: 'income', amount: 41000 },
+      { id: 3, desc: 'Jessie Salary (Monthly)', type: 'income', amount: 36000 },
+      { id: 4, desc: 'Cash Rebate', type: 'income', amount: 77000 },
+      { id: 5, desc: 'Tax', type: 'expense', amount: 91479 },
+      { id: 6, desc: 'Mortgage', type: 'expense', amount: 400000 },
+      { id: 7, desc: 'Rent', type: 'expense', amount: 84000 },
+      { id: 8, desc: 'Decoration', type: 'expense', amount: 100000 },
+      { id: 9, desc: 'Furniture', type: 'expense', amount: 60000 },
+      { id: 10, desc: 'Monthly Living', type: 'expense', amount: 420000 }
+    ];
+
+    function render() {
+      const list = document.getElementById('transactionList');
+      list.innerHTML = '';
+      
+      let income = 0, expense = 0;
+      
+      transactions.forEach(t => {
+        if (t.type === 'income') income += t.amount;
+        else expense += t.amount;
+        
+        const div = document.createElement('div');
+        div.className = `transaction ${t.type}`;
+        div.innerHTML = `
+          <span class="desc">${t.desc}</span>
+          <span>
+            <span class="amount">${t.type === 'income' ? '+' : '-'}$${t.amount.toLocaleString()}</span>
+            <button class="delete-btn" onclick="deleteTransaction(${t.id})">✕</button>
+          </span>
+        `;
+        list.appendChild(div);
+      });
+      
+      document.getElementById('totalIncome').textContent = '$' + income.toLocaleString();
+      document.getElementById('totalExpense').textContent = '$' + expense.toLocaleString();
+      document.getElementById('balance').textContent = '$' + (income - expense).toLocaleString();
+      
+      localStorage.setItem('budgetTransactions', JSON.stringify(transactions));
+    }
+
+    function addTransaction() {
+      const desc = document.getElementById('description').value;
+      const type = document.getElementById('type').value;
+      const amount = parseInt(document.getElementById('amount').value);
+      
+      if (!desc || !amount) return alert('Please fill all fields');
+      
+      transactions.push({ id: Date.now(), desc, type, amount });
+      document.getElementById('description').value = '';
+      document.getElementById('amount').value = '';
+      render();
+    }
+
+    function deleteTransaction(id) {
+      transactions = transactions.filter(t => t.id !== id);
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>
