@@ -149,8 +149,8 @@
 
   <script>
     // Get config from environment variables (set by Vercel)
-    const SUPABASE_URL = window.SUPABASE_URL || 'https://vkuhcjcpzhgfszrcavhr.supabase.co';
-    const SUPABASE_KEY = window.SUPABASE_KEY || '';
+    const SUPABASE_URL = window.VITE_SUPABASE_URL || 'https://vkuhcjcpzhgfszrcavhr.supabase.co';
+    const SUPABASE_KEY = window.VITE_SUPABASE_KEY || '';
     
     if (!SUPABASE_KEY) {
       document.getElementById('syncStatus').textContent = '⚠️ Please set SUPABASE_KEY in Vercel environment variables';
