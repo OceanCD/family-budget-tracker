@@ -1,5 +1,11 @@
 {
   "github": {
     "silent": true
+  },
+  "build": {
+    "env": {
+      "VITE_SUPABASE_URL": "https://vkuhcjcpzhgfszrcavhr.supabase.co",
+      "VITE_SUPABASE_KEY": "@supabase-key"
+    }
   }
 }
