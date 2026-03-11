@@ -1,2 +1,3 @@
-# family-budget-tracker
-Family Income &amp; Expense Tracker
+# Family Budget Tracker
+
+Simple family income & expense tracker with Supabase backend.
