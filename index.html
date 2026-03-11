@@ -9,6 +9,7 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; padding: 20px; }
     .container { max-width: 800px; margin: 0 auto; }
     h1 { text-align: center; margin-bottom: 30px; color: #333; }
+    h2 { font-size: 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
     
     .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
     .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
@@ -21,32 +22,45 @@
     .card.expense .amount { color: #ef4444; }
     .card.balance .amount { color: #3b82f6; }
     
-    .form-section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    .form-section h2 { margin-bottom: 15px; font-size: 18px; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr 100px; gap: 10px; margin-bottom: 10px; }
-    input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
-    button { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
-    button:hover { background: #2563eb; }
+    .section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
     
-    .transactions { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .transactions h2 { margin-bottom: 15px; font-size: 18px; }
-    .transaction { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
-    .transaction:last-child { border-bottom: none; }
-    .transaction .desc { font-weight: 500; }
-    .transaction .amount { font-weight: bold; }
-    .transaction.income .amount { color: #22c55e; }
-    .transaction.expense .amount { color: #ef4444; }
-    .transaction .delete-btn { background: #ef4444; padding: 4px 8px; font-size: 12px; margin-left: 10px; }
+    .income-table { width: 100%; border-collapse: collapse; }
+    .income-table th { text-align: left; padding: 8px; color: #666; font-weight: normal; border-bottom: 2px solid #eee; }
+    .income-table td { padding: 8px; border-bottom: 1px solid #eee; }
+    .income-table .calc { color: #888; font-size: 14px; }
+    .income-table .total { font-weight: bold; background: #f9f9f9; }
+    .income-table input { width: 80px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; }
+    
+    .expense-list { list-style: none; }
+    .expense-list li { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .expense-list .amount { font-weight: bold; }
+    .expense-list .editable { cursor: pointer; }
+    .expense-list .editable:hover { background: #f5f5f5; }
+    
+    .other-income { display: flex; gap: 10px; margin-top: 10px; }
+    .other-income input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 8px; }
+    
+    .btn { padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .btn:hover { background: #2563eb; }
+    .btn-small { padding: 4px 8px; font-size: 12px; }
+    .btn-edit { background: #6b7280; }
+    .btn-save { background: #22c55e; }
+    .btn-delete { background: #ef4444; margin-left: 10px; }
+    
+    .edit-row { display: none; }
+    .edit-row.active { display: table-row; }
+    
+    .sync-status { text-align: center; font-size: 12px; color: #888; margin-bottom: 20px; }
     
     @media (max-width: 600px) {
       .summary { grid-template-columns: 1fr; }
-      .form-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🏠 Family Budget 2026</h1>
+    <div class="sync-status" id="syncStatus">Loading...</div>
     
     <div class="summary">
       <div class="card income">
@@ -63,88 +77,284 @@
       </div>
     </div>
     
-    <div class="form-section">
-      <h2>➕ Add Transaction</h2>
-      <div class="form-row">
-        <input type="text" id="description" placeholder="Description (e.g., Cruise Salary)">
-        <select id="type">
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
-        </select>
-        <input type="number" id="amount" placeholder="Amount" min="0" step="100">
+    <!-- Cruise Income Section -->
+    <div class="section">
+      <h2>👤 Cruise Income <button class="btn btn-edit" onclick="toggleEdit('cruise')">✏️ Edit</button></h2>
+      <table class="income-table" id="cruiseTable">
+        <thead>
+          <tr><th>Source</th><th>Monthly</th><th>Months</th><th>Total</th><th></th></tr>
+        </thead>
+        <tbody id="cruiseIncome"></tbody>
+      </table>
+      <div class="other-income" id="cruiseEdit" style="display:none; margin-top:15px;">
+        <input type="text" id="cruiseSource" placeholder="Source name">
+        <input type="number" id="cruiseAmount" placeholder="Amount">
+        <input type="number" id="cruiseMonths" placeholder="Months" value="12">
+        <button class="btn" onclick="addIncome('Cruise')">Add</button>
       </div>
-      <button onclick="addTransaction()">Add</button>
     </div>
     
-    <div class="transactions">
-      <h2>📋 Transactions</h2>
-      <div id="transactionList"></div>
+    <!-- Jessie Income Section -->
+    <div class="section">
+      <h2>👤 Jessie Income <button class="btn btn-edit" onclick="toggleEdit('jessie')">✏️ Edit</button></h2>
+      <table class="income-table" id="jessieTable">
+        <thead>
+          <tr><th>Source</th><th>Monthly</th><th>Months</th><th>Total</th><th></th></tr>
+        </thead>
+        <tbody id="jessieIncome"></tbody>
+      </table>
+      <div class="other-income" id="jessieEdit" style="display:none; margin-top:15px;">
+        <input type="text" id="jessieSource" placeholder="Source name">
+        <input type="number" id="jessieAmount" placeholder="Amount">
+        <input type="number" id="jessieMonths" placeholder="Months" value="12">
+        <button class="btn" onclick="addIncome('Jessie')">Add</button>
+      </div>
+    </div>
+    
+    <!-- Other Income Section -->
+    <div class="section">
+      <h2>💵 Other Income</h2>
+      <ul class="expense-list" id="otherIncomeList"></ul>
+      <div class="other-income">
+        <input type="text" id="otherDesc" placeholder="Description">
+        <input type="number" id="otherAmount" placeholder="Amount">
+        <button class="btn" onclick="addOtherIncome()">Add</button>
+      </div>
+    </div>
+    
+    <!-- Housing Expenses -->
+    <div class="section">
+      <h2>🏠 Housing Expenses <button class="btn btn-edit" onclick="toggleEdit('housing')">✏️ Edit</button></h2>
+      <ul class="expense-list" id="housingList"></ul>
+      <div class="other-income" id="housingEdit" style="display:none; margin-top:15px;">
+        <input type="text" id="housingDesc" placeholder="Description">
+        <input type="number" id="housingAmount" placeholder="Amount">
+        <input type="number" id="housingMonths" placeholder="Months" value="1">
+        <button class="btn" onclick="addExpense('Housing')">Add</button>
+      </div>
+    </div>
+    
+    <!-- Living Expenses -->
+    <div class="section">
+      <h2>📊 Living & Tax Expenses <button class="btn btn-edit" onclick="toggleEdit('living')">✏️ Edit</button></h2>
+      <ul class="expense-list" id="livingList"></ul>
+      <div class="other-income" id="livingEdit" style="display:none; margin-top:15px;">
+        <input type="text" id="livingDesc" placeholder="Description">
+        <input type="number" id="livingAmount" placeholder="Amount">
+        <input type="number" id="livingMonths" placeholder="Months" value="12">
+        <button class="btn" onclick="addExpense('Living')">Add</button>
+      </div>
     </div>
   </div>
 
   <script>
-    // Load data from localStorage
-    let transactions = JSON.parse(localStorage.getItem('budgetTransactions')) || [
-      { id: 1, desc: 'Cruise Salary (Monthly)', type: 'income', amount: 52500 },
-      { id: 2, desc: 'Cruise Bonus', type: 'income', amount: 41000 },
-      { id: 3, desc: 'Jessie Salary (Monthly)', type: 'income', amount: 36000 },
-      { id: 4, desc: 'Cash Rebate', type: 'income', amount: 77000 },
-      { id: 5, desc: 'Tax', type: 'expense', amount: 91479 },
-      { id: 6, desc: 'Mortgage', type: 'expense', amount: 400000 },
-      { id: 7, desc: 'Rent', type: 'expense', amount: 84000 },
-      { id: 8, desc: 'Decoration', type: 'expense', amount: 100000 },
-      { id: 9, desc: 'Furniture', type: 'expense', amount: 60000 },
-      { id: 10, desc: 'Monthly Living', type: 'expense', amount: 420000 }
-    ];
-
-    function render() {
-      const list = document.getElementById('transactionList');
-      list.innerHTML = '';
+    // Get config from environment variables (set by Vercel)
+    const SUPABASE_URL = window.SUPABASE_URL || 'https://vkuhcjcpzhgfszrcavhr.supabase.co';
+    const SUPABASE_KEY = window.SUPABASE_KEY || '';
+    
+    if (!SUPABASE_KEY) {
+      document.getElementById('syncStatus').textContent = '⚠️ Please set SUPABASE_KEY in Vercel environment variables';
+    }
+    
+    let incomeSources = [];
+    let otherIncomes = [];
+    let expenses = [];
+    
+    // Fetch all data
+    async function loadData() {
+      if (!SUPABASE_KEY) return;
+      document.getElementById('syncStatus').textContent = 'Syncing...';
       
-      let income = 0, expense = 0;
-      
-      transactions.forEach(t => {
-        if (t.type === 'income') income += t.amount;
-        else expense += t.amount;
+      try {
+        // Load income sources
+        let res = await fetch(`${SUPABASE_URL}/rest/v1/income_sources?order=id`, {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        });
+        incomeSources = await res.json();
         
-        const div = document.createElement('div');
-        div.className = `transaction ${t.type}`;
-        div.innerHTML = `
-          <span class="desc">${t.desc}</span>
-          <span>
-            <span class="amount">${t.type === 'income' ? '+' : '-'}$${t.amount.toLocaleString()}</span>
-            <button class="delete-btn" onclick="deleteTransaction(${t.id})">✕</button>
-          </span>
-        `;
-        list.appendChild(div);
+        // Load other income
+        res = await fetch(`${SUPABASE_URL}/rest/v1/other_income?order=id`, {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        });
+        otherIncomes = await res.json();
+        
+        // Load expenses
+        res = await fetch(`${SUPABASE_URL}/rest/v1/expenses?order=id`, {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        });
+        expenses = await res.json();
+        
+        render();
+        document.getElementById('syncStatus').textContent = '✅ Synced';
+      } catch (e) {
+        document.getElementById('syncStatus').textContent = '❌ Error: ' + e.message;
+      }
+    }
+    
+    function render() {
+      // Render Cruise income
+      const cruise = incomeSources.filter(i => i.person === 'Cruise');
+      document.getElementById('cruiseIncome').innerHTML = cruise.map(i => `
+        <tr>
+          <td>${i.source}</td>
+          <td>$${i.amount.toLocaleString()}</td>
+          <td>× ${i.months}</td>
+          <td><strong>$${(i.amount * i.months).toLocaleString()}</strong></td>
+          <td><button class="btn btn-small btn-delete" onclick="deleteIncome(${i.id})">✕</button></td>
+        </tr>
+      `).join('') + `<tr class="total"><td colspan="3">Cruise Total</td><td colspan="2"><strong>$${cruise.reduce((s,i) => s + i.amount * i.months, 0).toLocaleString()}</strong></td></tr>`;
+      
+      // Render Jessie income
+      const jessie = incomeSources.filter(i => i.person === 'Jessie');
+      document.getElementById('jessieIncome').innerHTML = jessie.map(i => `
+        <tr>
+          <td>${i.source}</td>
+          <td>$${i.amount.toLocaleString()}</td>
+          <td>× ${i.months}</td>
+          <td><strong>$${(i.amount * i.months).toLocaleString()}</strong></td>
+          <td><button class="btn btn-small btn-delete" onclick="deleteIncome(${i.id})">✕</button></td>
+        </tr>
+      `).join('') + `<tr class="total"><td colspan="3">Jessie Total</td><td colspan="2"><strong>$${jessie.reduce((s,i) => s + i.amount * i.months, 0).toLocaleString()}</strong></td></tr>`;
+      
+      // Render other income
+      document.getElementById('otherIncomeList').innerHTML = otherIncomes.map(i => `
+        <li>
+          <span>${i.description}</span>
+          <span class="amount">$${i.amount.toLocaleString()} <button class="btn btn-small btn-delete" onclick="deleteOtherIncome(${i.id})">✕</button></span>
+        </li>
+      `).join('');
+      
+      // Render housing expenses
+      const housing = expenses.filter(e => e.category === 'Housing');
+      document.getElementById('housingList').innerHTML = housing.map(e => `
+        <li>
+          <span>${e.description}${e.months > 1 ? ` ($${e.amount.toLocaleString()} × ${e.months})` : ''}</span>
+          <span class="amount">$${(e.amount * e.months).toLocaleString()} <button class="btn btn-small btn-delete" onclick="deleteExpense(${e.id})">✕</button></span>
+        </li>
+      `).join('') + `<li style="font-weight:bold; border-top:2px solid #eee;"><span>Housing Total</span><span>$${housing.reduce((s,e) => s + e.amount * e.months, 0).toLocaleString()}</span></li>`;
+      
+      // Render living/tax expenses
+      const living = expenses.filter(e => e.category === 'Living' || e.category === 'Tax');
+      document.getElementById('livingList').innerHTML = living.map(e => `
+        <li>
+          <span>${e.description}${e.months > 1 ? ` ($${e.amount.toLocaleString()} × ${e.months})` : ''}</span>
+          <span class="amount">$${(e.amount * e.months).toLocaleString()} <button class="btn btn-small btn-delete" onclick="deleteExpense(${e.id})">✕</button></span>
+        </li>
+      `).join('') + `<li style="font-weight:bold; border-top:2px solid #eee;"><span>Living + Tax Total</span><span>$${living.reduce((s,e) => s + e.amount * e.months, 0).toLocaleString()}</span></li>`;
+      
+      // Calculate totals
+      const totalIncome = 
+        cruise.reduce((s,i) => s + i.amount * i.months, 0) +
+        jessie.reduce((s,i) => s + i.amount * i.months, 0) +
+        otherIncomes.reduce((s,i) => s + i.amount, 0);
+      
+      const totalExpense = 
+        housing.reduce((s,e) => s + e.amount * e.months, 0) +
+        living.reduce((s,e) => s + e.amount * e.months, 0);
+      
+      document.getElementById('totalIncome').textContent = '$' + totalIncome.toLocaleString();
+      document.getElementById('totalExpense').textContent = '$' + totalExpense.toLocaleString();
+      document.getElementById('balance').textContent = '$' + (totalIncome - totalExpense).toLocaleString();
+    }
+    
+    function toggleEdit(section) {
+      const edit = document.getElementById(section + 'Edit');
+      edit.style.display = edit.style.display === 'none' ? 'flex' : 'none';
+    }
+    
+    async function addIncome(person) {
+      const source = document.getElementById(person.toLowerCase() + 'Source').value;
+      const amount = parseInt(document.getElementById(person.toLowerCase() + 'Amount').value);
+      const months = parseInt(document.getElementById(person.toLowerCase() + 'Months').value) || 1;
+      
+      if (!source || !amount) return alert('Please fill all fields');
+      
+      await fetch(`${SUPABASE_URL}/rest/v1/income_sources`, {
+        method: 'POST',
+        headers: { 
+          'apikey': SUPABASE_KEY, 
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ person, source, amount, months })
       });
       
-      document.getElementById('totalIncome').textContent = '$' + income.toLocaleString();
-      document.getElementById('totalExpense').textContent = '$' + expense.toLocaleString();
-      document.getElementById('balance').textContent = '$' + (income - expense).toLocaleString();
-      
-      localStorage.setItem('budgetTransactions', JSON.stringify(transactions));
+      document.getElementById(person.toLowerCase() + 'Source').value = '';
+      document.getElementById(person.toLowerCase() + 'Amount').value = '';
+      loadData();
     }
-
-    function addTransaction() {
-      const desc = document.getElementById('description').value;
-      const type = document.getElementById('type').value;
-      const amount = parseInt(document.getElementById('amount').value);
+    
+    async function deleteIncome(id) {
+      if (!confirm('Delete this income?')) return;
+      await fetch(`${SUPABASE_URL}/rest/v1/income_sources?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+      loadData();
+    }
+    
+    async function addOtherIncome() {
+      const desc = document.getElementById('otherDesc').value;
+      const amount = parseInt(document.getElementById('otherAmount').value);
+      if (!desc || !amount) return alert('Please fill all fields');
+      
+      await fetch(`${SUPABASE_URL}/rest/v1/other_income`, {
+        method: 'POST',
+        headers: { 
+          'apikey': SUPABASE_KEY, 
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ description: desc, amount })
+      });
+      
+      document.getElementById('otherDesc').value = '';
+      document.getElementById('otherAmount').value = '';
+      loadData();
+    }
+    
+    async function deleteOtherIncome(id) {
+      if (!confirm('Delete this income?')) return;
+      await fetch(`${SUPABASE_URL}/rest/v1/other_income?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+      loadData();
+    }
+    
+    async function addExpense(category) {
+      const desc = document.getElementById(category.toLowerCase() + 'Desc').value;
+      const amount = parseInt(document.getElementById(category.toLowerCase() + 'Amount').value);
+      const months = parseInt(document.getElementById(category.toLowerCase() + 'Months').value) || 1;
       
       if (!desc || !amount) return alert('Please fill all fields');
       
-      transactions.push({ id: Date.now(), desc, type, amount });
-      document.getElementById('description').value = '';
-      document.getElementById('amount').value = '';
-      render();
+      await fetch(`${SUPABASE_URL}/rest/v1/expenses`, {
+        method: 'POST',
+        headers: { 
+          'apikey': SUPABASE_KEY, 
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ category, description: desc, amount, months, is_recurring: months > 1 })
+      });
+      
+      document.getElementById(category.toLowerCase() + 'Desc').value = '';
+      document.getElementById(category.toLowerCase() + 'Amount').value = '';
+      loadData();
     }
-
-    function deleteTransaction(id) {
-      transactions = transactions.filter(t => t.id !== id);
-      render();
+    
+    async function deleteExpense(id) {
+      if (!confirm('Delete this expense?')) return;
+      await fetch(`${SUPABASE_URL}/rest/v1/expenses?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+      loadData();
     }
-
-    render();
+    
+    // Load data on page load
+    loadData();
   </script>
 </body>
 </html>
