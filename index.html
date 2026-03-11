@@ -148,9 +148,9 @@
   </div>
 
   <script>
-    // Get config from environment variables (set by Vercel)
-    const SUPABASE_URL = window.VITE_SUPABASE_URL || 'https://vkuhcjcpzhgfszrcavhr.supabase.co';
-    const SUPABASE_KEY = window.VITE_SUPABASE_KEY || '';
+    // Supabase config - using anon key for client-side access
+    const SUPABASE_URL = 'https://vkuhcjcpzhgfszrcavhr.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrdWhjamNwemhnZnN6cmNhdmhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzY4MTcsImV4cCI6MjA4ODgxMjgxN30.wcIjL7nQb8LSgWJM4Yj3P0iBwKestSCjkJI8CvVrYp4';
     
     if (!SUPABASE_KEY) {
       document.getElementById('syncStatus').textContent = '⚠️ Please set SUPABASE_KEY in Vercel environment variables';
