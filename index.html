@@ -214,9 +214,41 @@
         <input type="number" id="currentAmount" placeholder="Current Value">
         <button class="btn" onclick="addPlatform()">Add</button>
       </div>
+      
+      <!-- Filters -->
+      <div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap;">
+        <input type="text" id="filterName" placeholder="Search platform..." style="padding:6px 10px; border:1px solid #ddd; border-radius:6px; flex:1;" oninput="applyFilters()">
+        <select id="filterType" style="padding:6px 10px; border:1px solid #ddd; border-radius:6px;" onchange="applyFilters()">
+          <option value="">All Types</option>
+          <option value="Brokerage">Brokerage</option>
+          <option value="Crypto">Crypto Exchange</option>
+          <option value="Bank">Bank</option>
+          <option value="Fund">Fund</option>
+          <option value="Other">Other</option>
+        </select>
+        <select id="filterCurrency" style="padding:6px 10px; border:1px solid #ddd; border-radius:6px;" onchange="applyFilters()">
+          <option value="">All Currencies</option>
+          <option value="USD">USD</option>
+          <option value="HKD">HKD</option>
+        </select>
+        <select id="filterShow" style="padding:6px 10px; border:1px solid #ddd; border-radius:6px;" onchange="applyFilters()">
+          <option value="all">All</option>
+          <option value="invested">Has Investment</option>
+          <option value="tracking">Tracking Only</option>
+        </select>
+      </div>
+      
       <table class="income-table" style="margin-top:15px;">
         <thead>
-          <tr><th>Platform</th><th>Type</th><th>Currency</th><th>Invested</th><th>Current</th><th>P&L</th><th></th></tr>
+          <tr>
+            <th style="cursor:pointer;" onclick="sortBy('name')">Platform <span class="sort-arrow" id="sort-name">↕</span></th>
+            <th style="cursor:pointer;" onclick="sortBy('type')">Type <span class="sort-arrow" id="sort-type">↕</span></th>
+            <th style="cursor:pointer;" onclick="sortBy('currency')">Currency <span class="sort-arrow" id="sort-currency">↕</span></th>
+            <th style="cursor:pointer;" onclick="sortBy('invested')">Invested <span class="sort-arrow" id="sort-invested">↕</span></th>
+            <th style="cursor:pointer;" onclick="sortBy('current')">Current <span class="sort-arrow" id="sort-current">↕</span></th>
+            <th style="cursor:pointer;" onclick="sortBy('pnl')">P&L <span class="sort-arrow" id="sort-pnl">↕</span></th>
+            <th></th>
+          </tr>
         </thead>
         <tbody id="platformsList"></tbody>
       </table>
@@ -279,6 +311,14 @@
     let displayCurrency = 'USD'; // Global display currency for investments tab
     const HKD_TO_USD = 7.8;
     
+    // Filter and sort state
+    let filterName = '';
+    let filterType = '';
+    let filterCurrency = '';
+    let filterShow = 'all'; // all, invested, tracking
+    let sortColumn = 'name';
+    let sortDirection = 'asc';
+    
     // Currency conversion
     function toUSD(amount, currency) {
       return currency === 'HKD' ? amount / HKD_TO_USD : amount;
@@ -296,6 +336,61 @@
       document.getElementById('currencyUSD').classList.toggle('active', currency === 'USD');
       document.getElementById('currencyHKD').classList.toggle('active', currency === 'HKD');
       renderInvestments();
+    }
+    
+    function applyFilters() {
+      filterName = document.getElementById('filterName').value.toLowerCase();
+      filterType = document.getElementById('filterType').value;
+      filterCurrency = document.getElementById('filterCurrency').value;
+      filterShow = document.getElementById('filterShow').value;
+      renderInvestments();
+    }
+    
+    function sortBy(column) {
+      if (sortColumn === column) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortColumn = column;
+        sortDirection = 'asc';
+      }
+      // Update arrows
+      document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '↕');
+      document.getElementById('sort-' + column).textContent = sortDirection === 'asc' ? '↑' : '↓';
+      renderInvestments();
+    }
+    
+    function getFilteredSortedPlatforms() {
+      let filtered = platforms.filter(p => {
+        // Name filter
+        if (filterName && !p.name.toLowerCase().includes(filterName)) return false;
+        // Type filter
+        if (filterType && p.platform_type !== filterType) return false;
+        // Currency filter
+        if (filterCurrency && (p.currency || 'USD') !== filterCurrency) return false;
+        // Show filter
+        if (filterShow === 'invested' && (p.invested_value || 0) === 0) return false;
+        if (filterShow === 'tracking' && (p.invested_value || 0) > 0) return false;
+        return true;
+      });
+      
+      // Sort
+      filtered.sort((a, b) => {
+        let valA, valB;
+        switch (sortColumn) {
+          case 'name': valA = a.name.toLowerCase(); valB = b.name.toLowerCase(); break;
+          case 'type': valA = a.platform_type; valB = b.platform_type; break;
+          case 'currency': valA = a.currency || 'USD'; valB = b.currency || 'USD'; break;
+          case 'invested': valA = toUSD(getEffectiveInvested(a), a.currency || 'USD'); valB = toUSD(getEffectiveInvested(b), b.currency || 'USD'); break;
+          case 'current': valA = toUSD(a.current_value, a.currency || 'USD'); valB = toUSD(b.current_value, b.currency || 'USD'); break;
+          case 'pnl': valA = toUSD(a.current_value, a.currency || 'USD') - toUSD(getEffectiveInvested(a), a.currency || 'USD'); valB = toUSD(b.current_value, b.currency || 'USD') - toUSD(getEffectiveInvested(b), b.currency || 'USD'); break;
+          default: valA = 0; valB = 0;
+        }
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+      
+      return filtered;
     }
     
     // Tab switching
@@ -426,8 +521,10 @@
     }
     
     function renderInvestments() {
-      // Render platforms
-      document.getElementById('platformsList').innerHTML = platforms.map(p => {
+      const filteredPlatforms = getFilteredSortedPlatforms();
+      
+      // Render platforms table with filtered/sorted data
+      document.getElementById('platformsList').innerHTML = filteredPlatforms.map(p => {
         const investedUSD = toUSD(getEffectiveInvested(p), p.currency || 'USD');
         const currentUSD = toUSD(p.current_value, p.currency || 'USD');
         const pnl = currentUSD - investedUSD;
