@@ -1,11 +1,12 @@
 -- Family Budget Tracker - Investment Portfolio Schema
--- Run this in Supabase SQL Editor to create the required tables
+-- Run this in Supabase SQL Editor to create/update the required tables
 
 -- Platforms table: Track investments by platform (IBKR, Binance, HSBC, etc.)
 CREATE TABLE IF NOT EXISTS platforms (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   platform_type TEXT NOT NULL CHECK (platform_type IN ('Brokerage', 'Crypto', 'Bank', 'Fund', 'Other')),
+  currency TEXT NOT NULL DEFAULT 'USD' CHECK (currency IN ('USD', 'HKD')),
   invested_value REAL NOT NULL DEFAULT 0,
   current_value REAL NOT NULL DEFAULT 0,
   notes TEXT,
@@ -21,7 +22,7 @@ CREATE POLICY "Anyone can insert platforms" ON platforms FOR INSERT WITH CHECK (
 CREATE POLICY "Anyone can update platforms" ON platforms FOR UPDATE USING (true);
 CREATE POLICY "Anyone can delete platforms" ON platforms FOR DELETE USING (true);
 
--- Snapshots table: Track portfolio value over time
+-- Snapshots table: Track portfolio value over time (values stored in USD)
 CREATE TABLE IF NOT EXISTS snapshots (
   id SERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -38,3 +39,6 @@ CREATE POLICY "Anyone can read snapshots" ON snapshots FOR SELECT USING (true);
 CREATE POLICY "Anyone can insert snapshots" ON snapshots FOR INSERT WITH CHECK (true);
 CREATE POLICY "Anyone can update snapshots" ON snapshots FOR UPDATE USING (true);
 CREATE POLICY "Anyone can delete snapshots" ON snapshots FOR DELETE USING (true);
+
+-- If platforms table already exists without currency column, add it:
+-- ALTER TABLE platforms ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';

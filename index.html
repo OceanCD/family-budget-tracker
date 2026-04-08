@@ -169,6 +169,14 @@
 
   <!-- Investment Portfolio Tab -->
   <div id="investments-tab" class="tab-content">
+    <!-- Currency Toggle -->
+    <div style="text-align:center; margin-bottom:20px;">
+      <span style="margin-right:10px;">Display Currency:</span>
+      <button class="tab" id="currencyUSD" onclick="setDisplayCurrency('USD')" style="padding:8px 16px;">USD</button>
+      <button class="tab" id="currencyHKD" onclick="setDisplayCurrency('HKD')" style="padding:8px 16px;">HKD</button>
+      <span style="margin-left:15px; color:#888; font-size:12px;">1 USD = 7.8 HKD</span>
+    </div>
+    
     <div class="summary">
       <div class="card income">
         <h3>💰 Total Invested</h3>
@@ -196,13 +204,17 @@
           <option value="Fund">Fund</option>
           <option value="Other">Other</option>
         </select>
-        <input type="number" id="investedAmount" placeholder="Invested $">
-        <input type="number" id="currentAmount" placeholder="Current Value $">
+        <select id="platformCurrency" style="padding:8px; border:1px solid #ddd; border-radius:8px;">
+          <option value="USD">USD</option>
+          <option value="HKD">HKD</option>
+        </select>
+        <input type="number" id="investedAmount" placeholder="Invested">
+        <input type="number" id="currentAmount" placeholder="Current Value">
         <button class="btn" onclick="addPlatform()">Add</button>
       </div>
       <table class="income-table" style="margin-top:15px;">
         <thead>
-          <tr><th>Platform</th><th>Type</th><th>Invested</th><th>Current</th><th>P&L</th><th></th></tr>
+          <tr><th>Platform</th><th>Type</th><th>Currency</th><th>Invested</th><th>Current</th><th>P&L</th><th></th></tr>
         </thead>
         <tbody id="platformsList"></tbody>
       </table>
@@ -229,6 +241,27 @@
     let expenses = [];
     let platforms = [];
     let snapshots = [];
+    let displayCurrency = 'USD'; // Global display currency for investments tab
+    const HKD_TO_USD = 7.8;
+    
+    // Currency conversion
+    function toUSD(amount, currency) {
+      return currency === 'HKD' ? amount / HKD_TO_USD : amount;
+    }
+    
+    function formatCurrency(amount) {
+      if (displayCurrency === 'HKD') {
+        return 'HK$' + (amount * HKD_TO_USD).toLocaleString(undefined, {maximumFractionDigits: 0});
+      }
+      return '$' + amount.toLocaleString(undefined, {maximumFractionDigits: 0});
+    }
+    
+    function setDisplayCurrency(currency) {
+      displayCurrency = currency;
+      document.getElementById('currencyUSD').classList.toggle('active', currency === 'USD');
+      document.getElementById('currencyHKD').classList.toggle('active', currency === 'HKD');
+      renderInvestments();
+    }
     
     // Tab switching
     function switchTab(tabName) {
@@ -351,44 +384,48 @@
     function renderInvestments() {
       // Render platforms
       document.getElementById('platformsList').innerHTML = platforms.map(p => {
-        const pnl = p.current_value - p.invested_value;
+        const investedUSD = toUSD(p.invested_value, p.currency || 'USD');
+        const currentUSD = toUSD(p.current_value, p.currency || 'USD');
+        const pnl = currentUSD - investedUSD;
         const pnlClass = pnl >= 0 ? 'color:#22c55e' : 'color:#ef4444';
         const pnlSign = pnl >= 0 ? '+' : '';
+        const currency = p.currency || 'USD';
         return `
           <tr>
             <td><strong>${p.name}</strong></td>
             <td>${p.platform_type}</td>
-            <td>$${p.invested_value.toLocaleString()}</td>
-            <td><input type="number" value="${p.current_value}" style="width:100px;padding:4px;" onchange="updatePlatform(${p.id}, this.value)"></td>
-            <td style="${pnlClass}"><strong>${pnlSign}$${pnl.toLocaleString()}</strong></td>
+            <td><span style="font-size:12px;padding:2px 6px;background:#eee;border-radius:4px;">${currency}</span></td>
+            <td>${formatCurrency(investedUSD)}</td>
+            <td><input type="number" value="${currentUSD}" style="width:100px;padding:4px;" onchange="updatePlatform(${p.id}, this.value, '${currency}')"></td>
+            <td style="${pnlClass}"><strong>${pnlSign}${formatCurrency(pnl)}</strong></td>
             <td><button class="btn btn-small btn-delete" onclick="deletePlatform(${p.id})">✕</button></td>
           </tr>
         `;
       }).join('') + `
         <tr class="total">
-          <td colspan="2"><strong>Total</strong></td>
-          <td><strong>$${platforms.reduce((s,p) => s + p.invested_value, 0).toLocaleString()}</strong></td>
-          <td><strong>$${platforms.reduce((s,p) => s + p.current_value, 0).toLocaleString()}</strong></td>
-          <td style="color:${platforms.reduce((s,p) => s + (p.current_value - p.invested_value), 0) >= 0 ? '#22c55e' : '#ef4444'}"><strong>${platforms.reduce((s,p) => s + (p.current_value - p.invested_value), 0) >= 0 ? '+' : ''}$${platforms.reduce((s,p) => s + (p.current_value - p.invested_value), 0).toLocaleString()}</strong></td>
+          <td colspan="3"><strong>Total (${displayCurrency})</strong></td>
+          <td><strong>${formatCurrency(platforms.reduce((s,p) => s + toUSD(p.invested_value, p.currency || 'USD'), 0))}</strong></td>
+          <td><strong>${formatCurrency(platforms.reduce((s,p) => s + toUSD(p.current_value, p.currency || 'USD'), 0))}</strong></td>
+          <td style="color:${platforms.reduce((s,p) => s + (toUSD(p.current_value, p.currency || 'USD') - toUSD(p.invested_value, p.currency || 'USD')), 0) >= 0 ? '#22c55e' : '#ef4444'}"><strong>${formatCurrency(platforms.reduce((s,p) => s + (toUSD(p.current_value, p.currency || 'USD') - toUSD(p.invested_value, p.currency || 'USD')), 0))}</strong></td>
           <td></td>
         </tr>
       `;
       
-      // Calculate totals
-      const totalInvested = platforms.reduce((s, p) => s + p.invested_value, 0);
-      const currentValue = platforms.reduce((s, p) => s + p.current_value, 0);
-      const totalPnL = currentValue - totalInvested;
+      // Calculate totals in display currency
+      const totalInvestedUSD = platforms.reduce((s, p) => s + toUSD(p.invested_value, p.currency || 'USD'), 0);
+      const currentValueUSD = platforms.reduce((s, p) => s + toUSD(p.current_value, p.currency || 'USD'), 0);
+      const totalPnL = currentValueUSD - totalInvestedUSD;
       
-      document.getElementById('totalInvested').textContent = '$' + totalInvested.toLocaleString();
-      document.getElementById('currentValue').textContent = '$' + currentValue.toLocaleString();
-      document.getElementById('totalPnL').textContent = (totalPnL >= 0 ? '+' : '') + '$' + totalPnL.toLocaleString();
+      document.getElementById('totalInvested').textContent = formatCurrency(totalInvestedUSD);
+      document.getElementById('currentValue').textContent = formatCurrency(currentValueUSD);
+      document.getElementById('totalPnL').textContent = (totalPnL >= 0 ? '+' : '') + formatCurrency(totalPnL);
       document.getElementById('totalPnL').style.color = totalPnL >= 0 ? '#22c55e' : '#ef4444';
       
-      // Render snapshots
+      // Render snapshots (in display currency)
       document.getElementById('snapshotList').innerHTML = snapshots.map(s => `
         <li>
           <span>📅 ${s.date} ${s.notes ? '- ' + s.notes : ''}</span>
-          <span class="amount">$${parseFloat(s.total_value).toLocaleString()}</span>
+          <span class="amount">${formatCurrency(parseFloat(s.total_value))}</span>
         </li>
       `).join('') || '<li style="color:#888;">No snapshots yet. Click "Take Snapshot" to record current value.</li>';
     }
@@ -396,6 +433,7 @@
     async function addPlatform() {
       const name = document.getElementById('platformName').value.trim();
       const platform_type = document.getElementById('platformType').value;
+      const currency = document.getElementById('platformCurrency').value;
       const invested_value = parseFloat(document.getElementById('investedAmount').value) || 0;
       const current_value = parseFloat(document.getElementById('currentAmount').value) || 0;
       
@@ -408,7 +446,7 @@
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ name, platform_type, invested_value, current_value })
+        body: JSON.stringify({ name, platform_type, currency, invested_value, current_value })
       });
       
       // Clear inputs
@@ -419,7 +457,12 @@
       loadData();
     }
     
-    async function updatePlatform(id, newValue) {
+    async function updatePlatform(id, newValue, originalCurrency) {
+      // Convert from USD to original currency if needed
+      let value = parseFloat(newValue);
+      if (originalCurrency === 'HKD') {
+        value = value * HKD_TO_USD; // Store in original currency
+      }
       await fetch(`${SUPABASE_URL}/rest/v1/platforms?id=eq.${id}`, {
         method: 'PATCH',
         headers: { 
@@ -427,7 +470,7 @@
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ current_value: parseFloat(newValue) })
+        body: JSON.stringify({ current_value: value })
       });
       loadData();
     }
@@ -442,7 +485,8 @@
     }
     
     async function takeSnapshot() {
-      const totalValue = platforms.reduce((s, p) => s + p.current_value, 0);
+      // Calculate total in USD
+      const totalValueUSD = platforms.reduce((s, p) => s + toUSD(p.current_value, p.currency || 'USD'), 0);
       const notes = prompt('Snapshot notes (optional):', '');
       const today = new Date().toISOString().split('T')[0];
       
@@ -453,10 +497,15 @@
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ date: today, total_value: totalValue, notes })
+        body: JSON.stringify({ date: today, total_value: totalValueUSD, notes })
       });
       loadData();
     }
+    
+    // Initialize currency toggle on load
+    document.addEventListener('DOMContentLoaded', function() {
+      setDisplayCurrency('USD');
+    });
     
     function toggleEdit(section) {
       const edit = document.getElementById(section + 'Edit');
