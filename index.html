@@ -515,7 +515,11 @@
             legend: { position: 'bottom' },
             tooltip: {
               callbacks: {
-                label: (context) => `${context.label}: ${formatCurrency(context.raw)}`
+                label: (context) => {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const pct = ((context.raw / total) * 100).toFixed(1);
+                  return `${context.label}: ${formatCurrency(context.raw)} (${pct}%)`;
+                }
               }
             }
           }
@@ -548,7 +552,11 @@
             legend: { position: 'bottom' },
             tooltip: {
               callbacks: {
-                label: (context) => `${context.label}: ${formatCurrency(context.raw)}`
+                label: (context) => {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const pct = ((context.raw / total) * 100).toFixed(1);
+                  return `${context.label}: ${formatCurrency(context.raw)} (${pct}%)`;
+                }
               }
             }
           }
