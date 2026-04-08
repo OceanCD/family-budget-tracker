@@ -381,18 +381,28 @@
       document.getElementById('balance').textContent = '$' + (totalIncome - totalExpense).toLocaleString();
     }
     
+    function getEffectiveInvested(p) {
+      // If invested_value is 0 or null, treat it as current_value (no P&L for this platform)
+      const invested = p.invested_value || 0;
+      if (invested === 0) {
+        return p.current_value || 0;
+      }
+      return invested;
+    }
+    
     function renderInvestments() {
       // Render platforms
       document.getElementById('platformsList').innerHTML = platforms.map(p => {
-        const investedUSD = toUSD(p.invested_value, p.currency || 'USD');
+        const investedUSD = toUSD(getEffectiveInvested(p), p.currency || 'USD');
         const currentUSD = toUSD(p.current_value, p.currency || 'USD');
         const pnl = currentUSD - investedUSD;
         const pnlClass = pnl >= 0 ? 'color:#22c55e' : 'color:#ef4444';
         const pnlSign = pnl >= 0 ? '+' : '';
         const currency = p.currency || 'USD';
+        const hasInvestment = (p.invested_value || 0) > 0;
         return `
           <tr>
-            <td><strong>${p.name}</strong></td>
+            <td><strong>${p.name}</strong>${!hasInvestment ? ' <span style="font-size:10px;color:#888;">(tracking only)</span>' : ''}</td>
             <td>${p.platform_type}</td>
             <td><span style="font-size:12px;padding:2px 6px;background:#eee;border-radius:4px;">${currency}</span></td>
             <td>${formatCurrency(investedUSD)}</td>
@@ -404,15 +414,15 @@
       }).join('') + `
         <tr class="total">
           <td colspan="3"><strong>Total (${displayCurrency})</strong></td>
-          <td><strong>${formatCurrency(platforms.reduce((s,p) => s + toUSD(p.invested_value, p.currency || 'USD'), 0))}</strong></td>
+          <td><strong>${formatCurrency(platforms.reduce((s,p) => s + toUSD(getEffectiveInvested(p), p.currency || 'USD'), 0))}</strong></td>
           <td><strong>${formatCurrency(platforms.reduce((s,p) => s + toUSD(p.current_value, p.currency || 'USD'), 0))}</strong></td>
-          <td style="color:${platforms.reduce((s,p) => s + (toUSD(p.current_value, p.currency || 'USD') - toUSD(p.invested_value, p.currency || 'USD')), 0) >= 0 ? '#22c55e' : '#ef4444'}"><strong>${formatCurrency(platforms.reduce((s,p) => s + (toUSD(p.current_value, p.currency || 'USD') - toUSD(p.invested_value, p.currency || 'USD')), 0))}</strong></td>
+          <td style="color:${platforms.reduce((s,p) => s + (toUSD(p.current_value, p.currency || 'USD') - toUSD(getEffectiveInvested(p), p.currency || 'USD')), 0) >= 0 ? '#22c55e' : '#ef4444'}"><strong>${formatCurrency(platforms.reduce((s,p) => s + (toUSD(p.current_value, p.currency || 'USD') - toUSD(getEffectiveInvested(p), p.currency || 'USD')), 0))}</strong></td>
           <td></td>
         </tr>
       `;
       
-      // Calculate totals in display currency
-      const totalInvestedUSD = platforms.reduce((s, p) => s + toUSD(p.invested_value, p.currency || 'USD'), 0);
+      // Calculate totals in display currency (only count P&L for platforms with actual investment)
+      const totalInvestedUSD = platforms.reduce((s, p) => s + toUSD(getEffectiveInvested(p), p.currency || 'USD'), 0);
       const currentValueUSD = platforms.reduce((s, p) => s + toUSD(p.current_value, p.currency || 'USD'), 0);
       const totalPnL = currentValueUSD - totalInvestedUSD;
       
