@@ -171,11 +171,11 @@
   <div id="investments-tab" class="tab-content">
     <div class="summary">
       <div class="card income">
-        <h3>📈 Total Invested</h3>
+        <h3>💰 Total Invested</h3>
         <div class="amount" id="totalInvested">$0</div>
       </div>
       <div class="card expense">
-        <h3>💹 Current Value</h3>
+        <h3>📈 Current Value</h3>
         <div class="amount" id="currentValue">$0</div>
       </div>
       <div class="card balance">
@@ -184,28 +184,27 @@
       </div>
     </div>
     
-    <!-- Holdings -->
+    <!-- Platforms -->
     <div class="section">
-      <h2>💼 Holdings <button class="btn btn-edit" onclick="toggleEdit('holdings')">➕ Add</button></h2>
-      <div id="holdingsEdit" style="display:none; margin-top:15px;" class="other-income">
-        <input type="text" id="holdingName" placeholder="Name (e.g., AAPL, BTC, VTI)">
-        <select id="holdingType" style="padding:8px; border:1px solid #ddd; border-radius:8px;">
-          <option value="Stock">Stock</option>
-          <option value="ETF">ETF</option>
-          <option value="Crypto">Crypto</option>
-          <option value="Bond">Bond</option>
+      <h2>🏦 Platforms <button class="btn btn-edit" onclick="toggleEdit('platforms')">➕ Add Platform</button></h2>
+      <div id="platformsEdit" style="display:none; margin-top:15px;" class="other-income">
+        <input type="text" id="platformName" placeholder="Platform (e.g., IBKR, Binance, HSBC)">
+        <select id="platformType" style="padding:8px; border:1px solid #ddd; border-radius:8px;">
+          <option value="Brokerage">Brokerage</option>
+          <option value="Crypto">Crypto Exchange</option>
+          <option value="Bank">Bank</option>
+          <option value="Fund">Fund</option>
           <option value="Other">Other</option>
         </select>
-        <input type="text" id="holdingTicker" placeholder="Ticker (optional)">
-        <input type="number" id="holdingQuantity" placeholder="Qty" style="width:70px;">
-        <input type="number" id="holdingPrice" placeholder="Price">
-        <button class="btn" onclick="addHolding()">Add</button>
+        <input type="number" id="investedAmount" placeholder="Invested $">
+        <input type="number" id="currentAmount" placeholder="Current Value $">
+        <button class="btn" onclick="addPlatform()">Add</button>
       </div>
       <table class="income-table" style="margin-top:15px;">
         <thead>
-          <tr><th>Name</th><th>Type</th><th>Ticker</th><th>Qty</th><th>Avg Price</th><th>Current</th><th>Value</th><th>P&L</th><th></th></tr>
+          <tr><th>Platform</th><th>Type</th><th>Invested</th><th>Current</th><th>P&L</th><th></th></tr>
         </thead>
-        <tbody id="holdingsList"></tbody>
+        <tbody id="platformsList"></tbody>
       </table>
     </div>
     
@@ -228,7 +227,7 @@
     let incomeSources = [];
     let otherIncomes = [];
     let expenses = [];
-    let holdings = [];
+    let platforms = [];
     let snapshots = [];
     
     // Tab switching
@@ -263,11 +262,11 @@
         });
         expenses = await res.json();
         
-        // Load holdings
-        res = await fetch(`${SUPABASE_URL}/rest/v1/holdings?order=id`, {
+        // Load platforms
+        res = await fetch(`${SUPABASE_URL}/rest/v1/platforms?order=id`, {
           headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
         });
-        holdings = await res.json();
+        platforms = await res.json();
         
         // Load snapshots
         res = await fetch(`${SUPABASE_URL}/rest/v1/snapshots?order=date.desc`, {
@@ -350,35 +349,39 @@
     }
     
     function renderInvestments() {
-      // Render holdings
-      document.getElementById('holdingsList').innerHTML = holdings.map(h => {
-        const value = h.quantity * h.current_price;
-        const cost = h.quantity * h.purchase_price;
-        const pnl = value - cost;
+      // Render platforms
+      document.getElementById('platformsList').innerHTML = platforms.map(p => {
+        const pnl = p.current_value - p.invested_value;
         const pnlClass = pnl >= 0 ? 'color:#22c55e' : 'color:#ef4444';
+        const pnlSign = pnl >= 0 ? '+' : '';
         return `
           <tr>
-            <td>${h.name}</td>
-            <td>${h.asset_type}</td>
-            <td>${h.ticker || '-'}</td>
-            <td>${h.quantity}</td>
-            <td>$${h.purchase_price.toLocaleString()}</td>
-            <td><input type="number" value="${h.current_price}" style="width:80px;padding:4px;" onchange="updatePrice(${h.id}, this.value)"></td>
-            <td><strong>$${value.toLocaleString()}</strong></td>
-            <td style="${pnlClass}"><strong>${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString()}</strong></td>
-            <td><button class="btn btn-small btn-delete" onclick="deleteHolding(${h.id})">✕</button></td>
+            <td><strong>${p.name}</strong></td>
+            <td>${p.platform_type}</td>
+            <td>$${p.invested_value.toLocaleString()}</td>
+            <td><input type="number" value="${p.current_value}" style="width:100px;padding:4px;" onchange="updatePlatform(${p.id}, this.value)"></td>
+            <td style="${pnlClass}"><strong>${pnlSign}$${pnl.toLocaleString()}</strong></td>
+            <td><button class="btn btn-small btn-delete" onclick="deletePlatform(${p.id})">✕</button></td>
           </tr>
         `;
-      }).join('');
+      }).join('') + `
+        <tr class="total">
+          <td colspan="2"><strong>Total</strong></td>
+          <td><strong>$${platforms.reduce((s,p) => s + p.invested_value, 0).toLocaleString()}</strong></td>
+          <td><strong>$${platforms.reduce((s,p) => s + p.current_value, 0).toLocaleString()}</strong></td>
+          <td style="color:${platforms.reduce((s,p) => s + (p.current_value - p.invested_value), 0) >= 0 ? '#22c55e' : '#ef4444'}"><strong>${platforms.reduce((s,p) => s + (p.current_value - p.invested_value), 0) >= 0 ? '+' : ''}$${platforms.reduce((s,p) => s + (p.current_value - p.invested_value), 0).toLocaleString()}</strong></td>
+          <td></td>
+        </tr>
+      `;
       
       // Calculate totals
-      const totalInvested = holdings.reduce((s, h) => s + (h.quantity * h.purchase_price), 0);
-      const currentValue = holdings.reduce((s, h) => s + (h.quantity * h.current_price), 0);
+      const totalInvested = platforms.reduce((s, p) => s + p.invested_value, 0);
+      const currentValue = platforms.reduce((s, p) => s + p.current_value, 0);
       const totalPnL = currentValue - totalInvested;
       
       document.getElementById('totalInvested').textContent = '$' + totalInvested.toLocaleString();
       document.getElementById('currentValue').textContent = '$' + currentValue.toLocaleString();
-      document.getElementById('totalPnL').textContent = '$' + totalPnL.toLocaleString();
+      document.getElementById('totalPnL').textContent = (totalPnL >= 0 ? '+' : '') + '$' + totalPnL.toLocaleString();
       document.getElementById('totalPnL').style.color = totalPnL >= 0 ? '#22c55e' : '#ef4444';
       
       // Render snapshots
@@ -390,50 +393,48 @@
       `).join('') || '<li style="color:#888;">No snapshots yet. Click "Take Snapshot" to record current value.</li>';
     }
     
-    async function addHolding() {
-      const name = document.getElementById('holdingName').value;
-      const asset_type = document.getElementById('holdingType').value;
-      const ticker = document.getElementById('holdingTicker').value || null;
-      const quantity = parseFloat(document.getElementById('holdingQuantity').value);
-      const purchase_price = parseFloat(document.getElementById('holdingPrice').value);
+    async function addPlatform() {
+      const name = document.getElementById('platformName').value.trim();
+      const platform_type = document.getElementById('platformType').value;
+      const invested_value = parseFloat(document.getElementById('investedAmount').value) || 0;
+      const current_value = parseFloat(document.getElementById('currentAmount').value) || 0;
       
-      if (!name || !quantity || !purchase_price) return alert('Please fill required fields');
+      if (!name) return alert('Please enter platform name');
       
-      await fetch(`${SUPABASE_URL}/rest/v1/holdings`, {
+      await fetch(`${SUPABASE_URL}/rest/v1/platforms`, {
         method: 'POST',
         headers: { 
           'apikey': SUPABASE_KEY, 
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ name, asset_type, ticker, quantity, purchase_price, current_price: purchase_price })
+        body: JSON.stringify({ name, platform_type, invested_value, current_value })
       });
       
       // Clear inputs
-      document.getElementById('holdingName').value = '';
-      document.getElementById('holdingTicker').value = '';
-      document.getElementById('holdingQuantity').value = '';
-      document.getElementById('holdingPrice').value = '';
-      document.getElementById('holdingsEdit').style.display = 'none';
+      document.getElementById('platformName').value = '';
+      document.getElementById('investedAmount').value = '';
+      document.getElementById('currentAmount').value = '';
+      document.getElementById('platformsEdit').style.display = 'none';
       loadData();
     }
     
-    async function updatePrice(id, newPrice) {
-      await fetch(`${SUPABASE_URL}/rest/v1/holdings?id=eq.${id}`, {
+    async function updatePlatform(id, newValue) {
+      await fetch(`${SUPABASE_URL}/rest/v1/platforms?id=eq.${id}`, {
         method: 'PATCH',
         headers: { 
           'apikey': SUPABASE_KEY, 
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ current_price: parseFloat(newPrice) })
+        body: JSON.stringify({ current_value: parseFloat(newValue) })
       });
       loadData();
     }
     
-    async function deleteHolding(id) {
-      if (!confirm('Delete this holding?')) return;
-      await fetch(`${SUPABASE_URL}/rest/v1/holdings?id=eq.${id}`, {
+    async function deletePlatform(id) {
+      if (!confirm('Delete this platform?')) return;
+      await fetch(`${SUPABASE_URL}/rest/v1/platforms?id=eq.${id}`, {
         method: 'DELETE',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
       });
@@ -441,7 +442,7 @@
     }
     
     async function takeSnapshot() {
-      const totalValue = holdings.reduce((s, h) => s + (h.quantity * h.current_price), 0);
+      const totalValue = platforms.reduce((s, p) => s + p.current_value, 0);
       const notes = prompt('Snapshot notes (optional):', '');
       const today = new Date().toISOString().split('T')[0];
       
