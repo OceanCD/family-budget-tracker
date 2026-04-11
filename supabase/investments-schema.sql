@@ -42,3 +42,22 @@ CREATE POLICY "Anyone can delete snapshots" ON snapshots FOR DELETE USING (true)
 
 -- If platforms table already exists without currency column, add it:
 -- ALTER TABLE platforms ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
+
+-- Cash Accounts table: Track cash balances across different accounts
+CREATE TABLE IF NOT EXISTS cash_accounts (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD' CHECK (currency IN ('USD', 'HKD')),
+  amount REAL NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE cash_accounts ENABLE ROW LEVEL SECURITY;
+
+-- Allow public read/write
+CREATE POLICY "Anyone can read cash_accounts" ON cash_accounts FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert cash_accounts" ON cash_accounts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update cash_accounts" ON cash_accounts FOR UPDATE USING (true);
+CREATE POLICY "Anyone can delete cash_accounts" ON cash_accounts FOR DELETE USING (true);

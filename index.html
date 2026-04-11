@@ -666,13 +666,52 @@
           <div class="amount" id="totalInvested">$0</div>
         </div>
         <div class="card highlight">
-          <h3>📈 Current Value</h3>
+          <h3>📈 Portfolio Value (excl. Cash)</h3>
           <div class="amount" id="currentValue">$0</div>
         </div>
         <div class="card balance">
           <h3>📊 P&L</h3>
           <div class="amount" id="totalPnL">$0</div>
         </div>
+        <div class="card" style="border-left: 3px solid var(--accent-yellow);">
+          <h3>🏦 Cash Balance</h3>
+          <div class="amount" style="color: var(--accent-yellow);" id="totalCash">$0</div>
+        </div>
+        <div class="card" style="border-left: 3px solid var(--accent-green);">
+          <h3>💎 Total Net Worth (incl. Cash)</h3>
+          <div class="amount" style="color: var(--accent-green);" id="totalNetWorth">$0</div>
+        </div>
+      </div>
+      
+      <!-- Cash Accounts -->
+      <div class="section">
+        <h2>
+          <span>🏦 Cash Accounts</span>
+          <button class="btn btn-edit btn-small" onclick="toggleEdit('cash')">➕ Add Cash Account</button>
+        </h2>
+        
+        <div id="cashEdit" style="display:none; margin-bottom:16px;" class="input-group">
+          <input type="text" id="cashName" placeholder="Account name (e.g., HSBC Savings, Cash on Hand)">
+          <select id="cashCurrency">
+            <option value="USD">USD</option>
+            <option value="HKD">HKD</option>
+          </select>
+          <input type="number" id="cashAmount" placeholder="Amount">
+          <button class="btn" onclick="addCashAccount()">Add</button>
+        </div>
+        
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Currency</th>
+              <th>Balance</th>
+              <th>Balance (${displayCurrency || 'USD'})</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cashList"></tbody>
+        </table>
       </div>
       
       <!-- Platforms -->
@@ -799,6 +838,7 @@
     let otherIncomes = [];
     let expenses = [];
     let platforms = [];
+    let cashAccounts = [];
     let snapshots = [];
     let displayCurrency = 'USD'; // Global display currency for investments tab
     const HKD_TO_USD = 7.8;
@@ -923,6 +963,20 @@
         });
         platforms = await res.json();
         
+        // Load cash accounts
+        try {
+          res = await fetch(`${SUPABASE_URL}/rest/v1/cash_accounts?order=id`, {
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+          });
+          if (res.ok) {
+            cashAccounts = await res.json();
+          } else {
+            cashAccounts = [];
+          }
+        } catch(e) {
+          cashAccounts = [];
+        }
+        
         // Load snapshots
         res = await fetch(`${SUPABASE_URL}/rest/v1/snapshots?order=date.desc`, {
           headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
@@ -1045,15 +1099,42 @@
         </tr>
       `;
       
+      // Render cash accounts
+      const totalCashUSD = cashAccounts.reduce((s, c) => s + toUSD(c.amount || 0, c.currency || 'USD'), 0);
+      document.getElementById('cashList').innerHTML = cashAccounts.map(c => {
+        const amountUSD = toUSD(c.amount || 0, c.currency || 'USD');
+        return `
+          <tr>
+            <td><strong>${c.name}</strong></td>
+            <td><span style="font-size:11px;padding:4px 8px;background:var(--bg-tertiary);border-radius:4px;border:1px solid var(--border-color);">${c.currency || 'USD'}</span></td>
+            <td>${c.currency === 'HKD' ? 'HK$' : '$'}${(c.amount || 0).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+            <td>${formatCurrency(amountUSD)}</td>
+            <td>
+              <button class="btn btn-small" style="background:var(--accent-blue);color:white;margin-right:4px;" onclick="editCashAccount(${c.id}, '${c.name}', ${c.amount}, '${c.currency || 'USD'}')">✏️</button>
+              <button class="btn btn-small btn-delete" onclick="deleteCashAccount(${c.id})">✕</button>
+            </td>
+          </tr>
+        `;
+      }).join('') + `
+        <tr class="total">
+          <td colspan="3"><strong>Total Cash (${displayCurrency})</strong></td>
+          <td><strong>${formatCurrency(totalCashUSD)}</strong></td>
+          <td></td>
+        </tr>
+      `;
+      
       // Calculate totals in display currency (only count P&L for platforms with actual investment)
       const totalInvestedUSD = platforms.reduce((s, p) => s + toUSD(getEffectiveInvested(p), p.currency || 'USD'), 0);
       const currentValueUSD = platforms.reduce((s, p) => s + toUSD(p.current_value, p.currency || 'USD'), 0);
       const totalPnL = currentValueUSD - totalInvestedUSD;
+      const totalNetWorth = currentValueUSD + totalCashUSD;
       
       document.getElementById('totalInvested').textContent = formatCurrency(totalInvestedUSD);
       document.getElementById('currentValue').textContent = formatCurrency(currentValueUSD);
       document.getElementById('totalPnL').textContent = (totalPnL >= 0 ? '+' : '') + formatCurrency(totalPnL);
       document.getElementById('totalPnL').style.color = totalPnL >= 0 ? '#0ecb81' : '#f6465d';
+      document.getElementById('totalCash').textContent = formatCurrency(totalCashUSD);
+      document.getElementById('totalNetWorth').textContent = formatCurrency(totalNetWorth);
       
       // Render snapshots (in display currency)
       document.getElementById('snapshotList').innerHTML = snapshots.map(s => `
@@ -1454,6 +1535,57 @@
     async function deleteExpense(id) {
       if (!confirm('Delete this expense?')) return;
       await fetch(`${SUPABASE_URL}/rest/v1/expenses?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+      loadData();
+    }
+    
+    // Cash account CRUD functions
+    async function addCashAccount() {
+      const name = document.getElementById('cashName').value.trim();
+      const currency = document.getElementById('cashCurrency').value;
+      const amount = parseFloat(document.getElementById('cashAmount').value) || 0;
+      
+      if (!name) return alert('Please enter account name');
+      
+      await fetch(`${SUPABASE_URL}/rest/v1/cash_accounts`, {
+        method: 'POST',
+        headers: { 
+          'apikey': SUPABASE_KEY, 
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, currency, amount })
+      });
+      
+      document.getElementById('cashName').value = '';
+      document.getElementById('cashAmount').value = '';
+      document.getElementById('cashEdit').style.display = 'none';
+      loadData();
+    }
+    
+    async function editCashAccount(id, name, amount, currency) {
+      const newName = prompt('Account name:', name);
+      if (!newName) return;
+      const newAmount = prompt('Amount:', amount);
+      if (newAmount === null) return;
+      
+      await fetch(`${SUPABASE_URL}/rest/v1/cash_accounts?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { 
+          'apikey': SUPABASE_KEY, 
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: newName, amount: parseFloat(newAmount) })
+      });
+      loadData();
+    }
+    
+    async function deleteCashAccount(id) {
+      if (!confirm('Delete this cash account?')) return;
+      await fetch(`${SUPABASE_URL}/rest/v1/cash_accounts?id=eq.${id}`, {
         method: 'DELETE',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
       });
