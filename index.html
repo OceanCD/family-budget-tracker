@@ -491,16 +491,62 @@
       }
       
       .data-table {
-        font-size: 12px;
+        font-size: 11px;
       }
       
       .data-table th,
       .data-table td {
-        padding: 8px;
+        padding: 6px 4px;
+      }
+      
+      .data-table input {
+        width: 70px !important;
+        font-size: 11px;
+        padding: 4px 6px;
       }
       
       .header h1 {
         font-size: 24px;
+      }
+      
+      .section {
+        padding: 16px 12px;
+        overflow-x: auto;
+      }
+      
+      .card .amount {
+        font-size: 22px;
+      }
+      
+      .card h3 {
+        font-size: 11px;
+      }
+      
+      .card {
+        padding: 16px;
+      }
+      
+      .btn-small {
+        padding: 4px 6px;
+        font-size: 11px;
+      }
+      
+      .tabs {
+        gap: 6px;
+      }
+      
+      .tab {
+        padding: 8px 16px;
+        font-size: 13px;
+      }
+      
+      .currency-toggle {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      
+      .stats-grid {
+        grid-template-columns: 1fr;
       }
     }
     
@@ -706,7 +752,7 @@
               <th>Account</th>
               <th>Currency</th>
               <th>Balance</th>
-              <th>Balance (${displayCurrency || 'USD'})</th>
+              <th id="cashConvertedHeader">Converted</th>
               <th></th>
             </tr>
           </thead>
@@ -1101,6 +1147,7 @@
       
       // Render cash accounts
       const totalCashUSD = cashAccounts.reduce((s, c) => s + toUSD(c.amount || 0, c.currency || 'USD'), 0);
+      document.getElementById('cashConvertedHeader').textContent = 'Balance (' + displayCurrency + ')';
       document.getElementById('cashList').innerHTML = cashAccounts.map(c => {
         const amountUSD = toUSD(c.amount || 0, c.currency || 'USD');
         return `
