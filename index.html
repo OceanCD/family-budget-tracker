@@ -1146,18 +1146,18 @@
       `;
       
       // Render cash accounts
-      const totalCashUSD = cashAccounts.reduce((s, c) => s + toUSD(c.amount || 0, c.currency || 'USD'), 0);
+      const totalCashUSD = cashAccounts.reduce((s, c) => s + toUSD(c.balance || 0, c.currency || 'USD'), 0);
       document.getElementById('cashConvertedHeader').textContent = 'Balance (' + displayCurrency + ')';
       document.getElementById('cashList').innerHTML = cashAccounts.map(c => {
-        const amountUSD = toUSD(c.amount || 0, c.currency || 'USD');
+        const amountUSD = toUSD(c.balance || 0, c.currency || 'USD');
         return `
           <tr>
             <td><strong>${c.name}</strong></td>
             <td><span style="font-size:11px;padding:4px 8px;background:var(--bg-tertiary);border-radius:4px;border:1px solid var(--border-color);">${c.currency || 'USD'}</span></td>
-            <td>${c.currency === 'HKD' ? 'HK$' : '$'}${(c.amount || 0).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+            <td>${c.currency === 'HKD' ? 'HK$' : '$'}${(c.balance || 0).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
             <td>${formatCurrency(amountUSD)}</td>
             <td>
-              <button class="btn btn-small" style="background:var(--accent-blue);color:white;margin-right:4px;" onclick="editCashAccount(${c.id}, '${c.name}', ${c.amount}, '${c.currency || 'USD'}')">✏️</button>
+              <button class="btn btn-small" style="background:var(--accent-blue);color:white;margin-right:4px;" onclick="editCashAccount(${c.id}, '${c.name}', ${c.balance}, '${c.currency || 'USD'}')">✏️</button>
               <button class="btn btn-small btn-delete" onclick="deleteCashAccount(${c.id})">✕</button>
             </td>
           </tr>
@@ -1592,7 +1592,7 @@
     async function addCashAccount() {
       const name = document.getElementById('cashName').value.trim();
       const currency = document.getElementById('cashCurrency').value;
-      const amount = parseFloat(document.getElementById('cashAmount').value) || 0;
+      const balance = parseFloat(document.getElementById('cashAmount').value) || 0;
       
       if (!name) return alert('Please enter account name');
       
@@ -1603,7 +1603,7 @@
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ name, currency, amount })
+        body: JSON.stringify({ name, currency, balance, platform_type: 'Bank' })
       });
       
       document.getElementById('cashName').value = '';
@@ -1612,11 +1612,11 @@
       loadData();
     }
     
-    async function editCashAccount(id, name, amount, currency) {
+    async function editCashAccount(id, name, balance, currency) {
       const newName = prompt('Account name:', name);
       if (!newName) return;
-      const newAmount = prompt('Amount:', amount);
-      if (newAmount === null) return;
+      const newBalance = prompt('Amount:', balance);
+      if (newBalance === null) return;
       
       await fetch(`${SUPABASE_URL}/rest/v1/cash_accounts?id=eq.${id}`, {
         method: 'PATCH',
@@ -1625,7 +1625,7 @@
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ name: newName, amount: parseFloat(newAmount) })
+        body: JSON.stringify({ name: newName, balance: parseFloat(newBalance) })
       });
       loadData();
     }
