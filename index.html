@@ -824,6 +824,36 @@
         </table>
       </div>
       
+      <!-- Deposit/Withdrawal History -->
+      <div class="section">
+        <h2>
+          <span>💸 Deposit & Withdrawal History</span>
+        </h2>
+        <div class="filter-section" style="margin-bottom:12px;">
+          <select id="depositFilterPlatform" onchange="renderDeposits()" style="min-width:150px;">
+            <option value="">All Platforms</option>
+          </select>
+          <select id="depositFilterType" onchange="renderDeposits()">
+            <option value="">All Types</option>
+            <option value="deposit">Deposits Only</option>
+            <option value="withdrawal">Withdrawals Only</option>
+          </select>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Platform</th>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="depositList"></tbody>
+        </table>
+      </div>
+
       <!-- Snapshot History -->
       <div class="section">
         <h2>
@@ -885,6 +915,7 @@
     let expenses = [];
     let platforms = [];
     let cashAccounts = [];
+    let deposits = [];
     let snapshots = [];
     let displayCurrency = 'USD'; // Global display currency for investments tab
     const HKD_TO_USD = 7.8;
@@ -1023,6 +1054,20 @@
           cashAccounts = [];
         }
         
+        // Load deposits
+        try {
+          res = await fetch(`${SUPABASE_URL}/rest/v1/deposits?order=date.desc,id.desc`, {
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+          });
+          if (res.ok) {
+            deposits = await res.json();
+          } else {
+            deposits = [];
+          }
+        } catch(e) {
+          deposits = [];
+        }
+
         // Load snapshots
         res = await fetch(`${SUPABASE_URL}/rest/v1/snapshots?order=date.desc`, {
           headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
@@ -1031,6 +1076,8 @@
         
         render();
         renderInvestments();
+        renderDeposits();
+        populateDepositFilter();
         document.getElementById('syncStatus').textContent = '✅ Synced';
       } catch (e) {
         document.getElementById('syncStatus').textContent = '❌ Error: ' + e.message;
@@ -1132,7 +1179,10 @@
             <td>${formatCurrency(investedUSD)}</td>
             <td><input type="number" value="${currentUSD}" style="width:100px;" onchange="updatePlatform(${p.id}, this.value, '${currency}')"></td>
             <td style="color:${pnlColor};"><strong>${pnlSign}${formatCurrency(pnl)}</strong></td>
-            <td><button class="btn btn-small btn-delete" onclick="deletePlatform(${p.id})">✕</button></td>
+            <td style="white-space:nowrap;">
+              <button class="btn btn-small" style="background:var(--accent-yellow);color:#0b0e11;margin-right:4px;" onclick="showDepositModal(${p.id}, '${p.name}', '${currency}')" title="Record Deposit/Withdrawal">💰</button>
+              <button class="btn btn-small btn-delete" onclick="deletePlatform(${p.id})">✕</button>
+            </td>
           </tr>
         `;
       }).join('') + `
@@ -1586,6 +1636,138 @@
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
       });
       loadData();
+    }
+    
+    // Deposit/Withdrawal functions
+    function showDepositModal(platformId, platformName, currency) {
+      const typeChoice = prompt(`Record for ${platformName}:\n1 = Deposit\n2 = Withdrawal\n\nEnter 1 or 2:`);
+      if (!typeChoice) return;
+      const txType = typeChoice.trim() === '2' ? 'withdrawal' : 'deposit';
+      
+      const amountStr = prompt(`Enter ${txType} amount (${currency}):`);
+      if (!amountStr) return;
+      const amount = parseFloat(amountStr);
+      if (isNaN(amount) || amount <= 0) return alert('Please enter a valid positive amount');
+      
+      const notes = prompt('Notes (optional):', '') || '';
+      const date = prompt('Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+      if (!date) return;
+      
+      recordDeposit(platformId, platformName, currency, txType, amount, notes, date);
+    }
+    
+    async function recordDeposit(platformId, platformName, currency, txType, amount, notes, date) {
+      // Save deposit record
+      await fetch(`${SUPABASE_URL}/rest/v1/deposits`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          platform_id: platformId,
+          platform_name: platformName,
+          currency: currency,
+          type: txType,
+          amount: amount,
+          notes: notes,
+          date: date
+        })
+      });
+      
+      // Update the platform's invested_value
+      const platform = platforms.find(p => p.id === platformId);
+      if (platform) {
+        const currentInvested = platform.invested_value || 0;
+        const newInvested = txType === 'deposit' ? currentInvested + amount : currentInvested - amount;
+        await fetch(`${SUPABASE_URL}/rest/v1/platforms?id=eq.${platformId}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ invested_value: Math.max(0, newInvested) })
+        });
+      }
+      
+      loadData();
+    }
+    
+    async function deleteDeposit(id, platformId, txType, amount) {
+      if (!confirm('Delete this transaction? This will also reverse the invested value change.')) return;
+      
+      // Delete the deposit record
+      await fetch(`${SUPABASE_URL}/rest/v1/deposits?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      });
+      
+      // Reverse the invested_value change
+      const platform = platforms.find(p => p.id === platformId);
+      if (platform) {
+        const currentInvested = platform.invested_value || 0;
+        const newInvested = txType === 'deposit' ? currentInvested - amount : currentInvested + amount;
+        await fetch(`${SUPABASE_URL}/rest/v1/platforms?id=eq.${platformId}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ invested_value: Math.max(0, newInvested) })
+        });
+      }
+      
+      loadData();
+    }
+    
+    function populateDepositFilter() {
+      const select = document.getElementById('depositFilterPlatform');
+      const uniquePlatforms = [...new Set(deposits.map(d => d.platform_name))].sort();
+      select.innerHTML = '<option value="">All Platforms</option>' + 
+        uniquePlatforms.map(name => `<option value="${name}">${name}</option>`).join('');
+    }
+    
+    function renderDeposits() {
+      const filterPlatform = document.getElementById('depositFilterPlatform')?.value || '';
+      const filterType = document.getElementById('depositFilterType')?.value || '';
+      
+      let filtered = deposits;
+      if (filterPlatform) filtered = filtered.filter(d => d.platform_name === filterPlatform);
+      if (filterType) filtered = filtered.filter(d => d.type === filterType);
+      
+      const totalDeposits = filtered.filter(d => d.type === 'deposit').reduce((s, d) => s + toUSD(d.amount, d.currency || 'USD'), 0);
+      const totalWithdrawals = filtered.filter(d => d.type === 'withdrawal').reduce((s, d) => s + toUSD(d.amount, d.currency || 'USD'), 0);
+      
+      document.getElementById('depositList').innerHTML = filtered.map(d => {
+        const isDeposit = d.type === 'deposit';
+        const color = isDeposit ? '#0ecb81' : '#f6465d';
+        const sign = isDeposit ? '+' : '-';
+        const symbol = (d.currency || 'USD') === 'HKD' ? 'HK$' : '$';
+        return `
+          <tr>
+            <td>${d.date}</td>
+            <td><strong>${d.platform_name}</strong></td>
+            <td><span style="font-size:11px;padding:3px 8px;border-radius:4px;background:${isDeposit ? 'rgba(14,203,129,0.15)' : 'rgba(246,70,93,0.15)'};color:${color};">${isDeposit ? '⬆ Deposit' : '⬇ Withdrawal'}</span></td>
+            <td style="color:${color};font-weight:600;">${sign}${symbol}${d.amount.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+            <td style="color:var(--text-secondary);font-size:12px;">${d.notes || '-'}</td>
+            <td><button class="btn btn-small btn-delete" onclick="deleteDeposit(${d.id}, ${d.platform_id}, '${d.type}', ${d.amount})">✕</button></td>
+          </tr>
+        `;
+      }).join('') + `
+        <tr class="total">
+          <td colspan="3"><strong>Net Flow</strong></td>
+          <td><strong style="color:${(totalDeposits - totalWithdrawals) >= 0 ? '#0ecb81' : '#f6465d'};">${formatCurrency(totalDeposits - totalWithdrawals)}</strong></td>
+          <td style="font-size:11px;color:var(--text-secondary);">Deposits: ${formatCurrency(totalDeposits)} | Withdrawals: ${formatCurrency(totalWithdrawals)}</td>
+          <td></td>
+        </tr>
+      `;
+      
+      if (filtered.length === 0) {
+        document.getElementById('depositList').innerHTML = '<tr><td colspan="6" style="color:var(--text-secondary);text-align:center;padding:20px;">No deposit/withdrawal records yet. Click the 💰 button on any platform to record a transaction.</td></tr>';
+      }
     }
     
     // Cash account CRUD functions
